@@ -20,8 +20,9 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "sdcard.h"
-#include "stm32f10x_sdio.h"
-#include "stm32f10x_dma.h"
+#include "stm32f4xx_gpio.h"
+#include "stm32f4xx_sdio.h"
+#include "stm32f4xx_dma.h"
 
 /** @addtogroup STM32F10x_StdPeriph_Examples
   * @{
@@ -93,6 +94,9 @@
 #define SD_CCCC_WRITE_PROT              ((uint32_t)0x00000040)
 #define SD_CCCC_ERASE                   ((uint32_t)0x00000020)
 
+#define FALSE	((uint8_t)0)
+#define TRUE	((uint8_t)1)
+
 /* Following commands are SD Card Specific commands.
    SDIO_APP_CMD should be sent before sending these commands. */
 #define SDIO_SEND_IF_COND               ((uint32_t)0x00000008)
@@ -146,10 +150,14 @@ SD_Error SD_Init(void)
   GPIO_Configuration();
 
   /* Enable the SDIO AHB Clock */
-  RCC_AHBPeriphClockCmd(RCC_AHBPeriph_SDIO, ENABLE);
+  //RCC_AHBPeriphClockCmd(RCC_AHBPeriph_SDIO, ENABLE);
+  RCC->APB2ENR |= RCC_APB2ENR_SDIOEN;
+
 
   /* Enable the DMA2 Clock */
-  RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA2, ENABLE);
+  //RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA2, ENABLE);
+  RCC->AHB1ENR |= RCC_AHB1ENR_DMA2EN;
+
 
   SDIO_DeInit();
 
@@ -192,7 +200,7 @@ SD_Error SD_PowerON(void)
 {
   SD_Error errorstatus = SD_OK;
   uint32_t response = 0, count = 0;
-  bool validvoltage = FALSE;
+  uint8_t validvoltage = FALSE;
   uint32_t SDType = SD_STD_CAPACITY;
 
   /* Power ON Sequence -------------------------------------------------------*/
@@ -306,7 +314,7 @@ SD_Error SD_PowerON(void)
       }
 
       response = SDIO_GetResponse(SDIO_RESP1);
-      validvoltage = (bool) (((response >> 31) == 1) ? 1 : 0);
+      validvoltage = (uint8_t) (((response >> 31) == 1) ? 1 : 0);
       count++;
     }
     if (count >= SD_MAX_VOLT_TRIAL)
@@ -910,7 +918,8 @@ SD_Error SD_ReadBlock(uint32_t addr, uint32_t *readbuff, uint16_t BlockSize)
     SDIO_ITConfig(SDIO_IT_DCRCFAIL | SDIO_IT_DTIMEOUT | SDIO_IT_DATAEND | SDIO_IT_RXOVERR | SDIO_IT_STBITERR, ENABLE);
     SDIO_DMACmd(ENABLE);
     DMA_RxConfiguration(readbuff, BlockSize);
-    while (DMA_GetFlagStatus(DMA2_FLAG_TC4) == RESET)
+    //while (DMA_GetFlagStatus(DMA2_FLAG_TC4) == RESET)
+    while (DMA_GetFlagStatus(DMA2_Stream0, DMA_FLAG_TCIF4) == RESET)
     {}
   }
   return(errorstatus);
@@ -1108,7 +1117,8 @@ SD_Error SD_ReadMultiBlocks(uint32_t addr, uint32_t *readbuff, uint16_t BlockSiz
       SDIO_ITConfig(SDIO_IT_DCRCFAIL | SDIO_IT_DTIMEOUT | SDIO_IT_DATAEND | SDIO_IT_RXOVERR | SDIO_IT_STBITERR, ENABLE);
       SDIO_DMACmd(ENABLE);
       DMA_RxConfiguration(readbuff, (NumberOfBlocks * BlockSize));
-      while (DMA_GetFlagStatus(DMA2_FLAG_TC4) == RESET)
+      //while (DMA_GetFlagStatus(DMA2_FLAG_TC4) == RESET)
+      while (DMA_GetFlagStatus(DMA2_Stream0, DMA_FLAG_TCIF4) == RESET)
       {}
       while ((TransferEnd == 0) && (TransferError == SD_OK))
       {}
@@ -1331,7 +1341,8 @@ SD_Error SD_WriteBlock(uint32_t addr, uint32_t *writebuff, uint16_t BlockSize)
     SDIO_ITConfig(SDIO_IT_DCRCFAIL | SDIO_IT_DTIMEOUT | SDIO_IT_DATAEND | SDIO_IT_TXUNDERR | SDIO_IT_STBITERR, ENABLE);
     DMA_TxConfiguration(writebuff, BlockSize);
     SDIO_DMACmd(ENABLE);
-    while (DMA_GetFlagStatus(DMA2_FLAG_TC4) == RESET)
+    //while (DMA_GetFlagStatus(DMA2_FLAG_TC4) == RESET)
+	while (DMA_GetFlagStatus(DMA2_Stream0, DMA_FLAG_TCIF4) == RESET)
     {}
     while ((TransferEnd == 0) && (TransferError == SD_OK))
     {}
@@ -1603,7 +1614,8 @@ SD_Error SD_WriteMultiBlocks(uint32_t addr, uint32_t *writebuff, uint16_t BlockS
       SDIO_ITConfig(SDIO_IT_DCRCFAIL | SDIO_IT_DTIMEOUT | SDIO_IT_DATAEND | SDIO_IT_TXUNDERR | SDIO_IT_STBITERR, ENABLE);
       SDIO_DMACmd(ENABLE);
       DMA_TxConfiguration(writebuff, (NumberOfBlocks * BlockSize));
-      while (DMA_GetFlagStatus(DMA2_FLAG_TC4) == RESET)
+      //while (DMA_GetFlagStatus(DMA2_FLAG_TC4) == RESET)
+      while (DMA_GetFlagStatus(DMA2_Stream0, DMA_FLAG_TCIF4) == RESET)
       {}
       while ((TransferEnd == 0) && (TransferError == SD_OK))
       {}
@@ -2808,6 +2820,8 @@ static uint8_t convert_from_bytes_to_power_of_two(uint16_t NumberOfBytes)
   return(count);
 }
 
+
+//TODO: Rewrite Init functions with CMSIS for my MCU pinout: SDIO, USART1,  
 /**
   * @brief  Configures the SDIO Corresponding GPIO Ports
   * @param  None
@@ -2818,12 +2832,16 @@ static void GPIO_Configuration(void)
   GPIO_InitTypeDef  GPIO_InitStructure;
 
   /* GPIOC and GPIOD Periph clock enable */
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC | RCC_APB2Periph_GPIOD, ENABLE);
+  //RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC | RCC_APB2Periph_GPIOD, ENABLE);
+  RCC->AHB1ENR |= RCC_AHB1ENR_GPIOCEN;
+  RCC->AHB1ENR |= RCC_AHB1ENR_GPIODEN;
+
 
   /* Configure PC.08, PC.09, PC.10, PC.11, PC.12 pin: D0, D1, D2, D3, CLK pin */
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin_8 | GPIO_Pin_12;
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
+  //GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
   GPIO_Init(GPIOC, &GPIO_InitStructure);
 
   /* Configure PD.02 CMD line */
@@ -2849,16 +2867,18 @@ static void GPIO_Configuration(void)
   GPIO_Init(GPIOC, &GPIO_InitStructure);	
 
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin_9;	         //USART1 TX
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;    //复用推挽输出
-  GPIO_Init(GPIOA, &GPIO_InitStructure);		    //A端口 
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;    //
+  GPIO_Init(GPIOA, &GPIO_InitStructure);		    //A 
 
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10;	         //USART1 RX
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;   //复用开漏输入
-  GPIO_Init(GPIOA, &GPIO_InitStructure);		         //A端口 
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;   //
+  GPIO_Init(GPIOA, &GPIO_InitStructure);		         //A 
 
   GPIO_SetBits(GPIOC, GPIO_Pin_9| GPIO_Pin_10 | GPIO_Pin_11 ); 		    //D1 D2 D3
 }
 
+
+// TODO: Rewrite DMA Initialization for STM32F407 SDIO RX and TX functions
 /**
   * @brief  Configures the DMA2 Channel4 for SDIO Tx request.
   * @param  BufferSRC: pointer to the source buffer

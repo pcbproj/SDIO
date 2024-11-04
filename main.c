@@ -1,5 +1,5 @@
 /*******************************************************************/
-#include "stm32f10x.h"
+#include "stm32f407xx.h"
 #include "sdcard.h"
 
 
@@ -21,7 +21,8 @@ int main()
         readBuffer[i] = 0;
     }
     // Иницилизация карты
-    SD_Init();
+	SD_Init();
+	
     
     // Получаем информацию о карте
     SD_GetCardInfo(&SDCardInfo);
@@ -45,3 +46,54 @@ int main()
 /*******************************************************************/
 
 	 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*********************************************************************
+*                    SEGGER Microcontroller GmbH                     *
+*                        The Embedded Experts                        *
+**********************************************************************
+
+
+-------------------------- END-OF-HEADER -----------------------------
+
+File    : main.c
+Purpose : Generic application start
+
+*/
+
+/*#include <stdio.h>
+#include <stdlib.h>
+*/
+/*********************************************************************
+*
+*       main()
+*
+*  Function description
+*   Application entry point.
+*/
+/*int main(void) {
+  int i;
+
+  for (i = 0; i < 100; i++) {
+    printf("Hello World %d!\n", i);
+  }
+  do {
+    i++;
+  } while (1);
+}
+*/
+/*************************** End of file ****************************/
